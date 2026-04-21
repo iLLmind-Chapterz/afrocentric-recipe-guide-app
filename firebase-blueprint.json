@@ -1,0 +1,64 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile information and settings.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "savedRecipes": { "type": "array", "items": { "type": "string" } },
+        "isPremium": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Recipe": {
+      "title": "Recipe",
+      "description": "Details of a food recipe.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "tribe": { "type": "string", "enum": ["Yoruba", "Igbo", "Hausa", "General"] },
+        "cookingTime": { "type": "integer" },
+        "occasion": { "type": "string", "enum": ["Owambe", "Casual", "Breakfast"] },
+        "isPremium": { "type": "boolean" },
+        "ingredients": { "type": "array", "items": { "type": "string" } },
+        "instructions": { "type": "array", "items": { "type": "string" } },
+        "imageUrl": { "type": "string" },
+        "authorId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "tribe", "cookingTime", "ingredients", "instructions"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Payment records for premium subscriptions.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "reference": { "type": "string" },
+        "amount": { "type": "integer" },
+        "status": { "type": "string", "enum": ["success", "failed", "pending"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "reference", "amount", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Public and private user profile data."
+    },
+    "/recipes/{recipeId}": {
+      "schema": "Recipe",
+      "description": "Recipe data accessible by users."
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Payment records."
+    }
+  }
+}

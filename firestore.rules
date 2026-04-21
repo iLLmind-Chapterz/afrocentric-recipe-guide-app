@@ -1,0 +1,116 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    match /test/connection {
+      allow read: if true;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'chapterztheorator@gmail.com'
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Entity Validations ---
+
+    function isValidUser(data) {
+      return data.uid is string && data.uid.size() <= 128
+        && data.email is string && data.email.size() <= 256
+        && data.role in ['user', 'admin']
+        && (data.get('displayName', '') is string)
+        && (data.get('isPremium', false) is bool)
+        && (data.get('savedRecipes', []) is list);
+    }
+
+    function isValidRecipe(data) {
+      return data.title is string && data.title.size() <= 200
+        && data.tribe in ['Yoruba', 'Igbo', 'Hausa', 'General']
+        && data.cookingTime is int && data.cookingTime > 0
+        && data.occasion in ['Owambe', 'Casual', 'Breakfast']
+        && data.isPremium is bool
+        && data.ingredients is list && data.ingredients.size() > 0
+        && data.instructions is list && data.instructions.size() > 0
+        && (data.get('imageUrl', '') is string);
+    }
+
+    function isValidTransaction(data) {
+      return data.userId is string && data.userId.size() <= 128
+        && data.reference is string && data.reference.size() <= 256
+        && data.amount is int && data.amount > 0
+        && data.status in ['success', 'failed', 'pending'];
+    }
+
+    // --- Collection Matches ---
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      
+      allow create: if isSignedIn() 
+        && isOwner(userId)
+        && isValidUser(incoming())
+        && incoming().role == 'user' // Users can't make themselves admins
+        && incoming().isPremium == false; // Users can't make themselves premium on creation
+
+      allow update: if (isOwner(userId) || isAdmin())
+        && (
+          isAdmin() || 
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'savedRecipes'])
+            && isValidUser(incoming())
+          )
+        );
+    }
+
+    match /recipes/{recipeId} {
+      allow get: if true; // Recipes are public
+      allow list: if true; // Anyone can list recipes
+      
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /transactions/{transactionId} {
+      allow get: if isSignedIn() && (isOwner(existing().userId) || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+
+      allow create: if isSignedIn()
+        && isOwner(incoming().userId)
+        && isValidTransaction(incoming())
+        && incoming().status == 'pending'; // Start as pending
+        
+      allow update: if isAdmin(); // Only admins/system can update transaction status to success
+    }
+
+    // Special match for admin check
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+    }
+  }
+}
